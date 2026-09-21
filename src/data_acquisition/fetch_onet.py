@@ -37,6 +37,14 @@ EXTRACT_DIR = RAW_DIR / f"onet_db_{ONET_VERSION}"
 
 # The core files this project actually needs (others in the zip are ignored to
 # keep data/raw small). Filenames match O*NET's Excel release naming.
+#
+# NOTE (v31.0): O*NET restructured a couple of files compared to older
+# versions. "Skills.xlsx" was split into "Essential Skills.xlsx" and
+# "Transferable Skills.xlsx", and "Alternate Titles.xlsx" was renamed to
+# "Sample of Reported Titles.xlsx". If a future O*NET version renames files
+# again, re-run with FILES_OF_INTEREST = [] temporarily (see the "Warning"
+# branch in extract()) to print every filename in the archive and update
+# this list.
 FILES_OF_INTEREST = [
     "Task Ratings.xlsx",
     "Essential Skills.xlsx",
@@ -50,6 +58,7 @@ FILES_OF_INTEREST = [
     "Occupation Data.xlsx",
     "Sample of Reported Titles.xlsx",
 ]
+
 
 def fetch() -> Path:
     RAW_DIR.mkdir(parents=True, exist_ok=True)
@@ -76,8 +85,23 @@ def extract(zip_path: Path) -> None:
             zf.extractall(EXTRACT_DIR)
             return
         for n in wanted:
-            zf.extract(n, EXTRACT_DIR)
-            print(f"Extracted: {n}")
+            # Extract by basename only (flattened into EXTRACT_DIR), since the
+            # zip's internal folder (e.g. "db_31_0_excel/") is not something
+            # downstream code should need to know about.
+            dest = EXTRACT_DIR / Path(n).name
+            with zf.open(n) as src, open(dest, "wb") as out:
+                out.write(src.read())
+            print(f"Extracted: {n} -> {dest.name}")
+
+        found_names = {Path(n).name for n in wanted}
+        missing = [f for f in FILES_OF_INTEREST if f not in found_names]
+        if missing:
+            print(f"\nWarning: {len(missing)} expected file(s) were NOT found in this archive:")
+            for f in missing:
+                print(f"  - {f}")
+            print("This usually means O*NET renamed a file in this version. Full archive listing:")
+            for n in names:
+                print(f"  - {n}")
 
 
 if __name__ == "__main__":
