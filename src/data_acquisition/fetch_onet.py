@@ -39,16 +39,17 @@ EXTRACT_DIR = RAW_DIR / f"onet_db_{ONET_VERSION}"
 # keep data/raw small). Filenames match O*NET's Excel release naming.
 FILES_OF_INTEREST = [
     "Task Ratings.xlsx",
-    "Skills.xlsx",
+    "Essential Skills.xlsx",
+    "Transferable Skills.xlsx",
     "Abilities.xlsx",
     "Knowledge.xlsx",
     "Work Activities.xlsx",
+    "Work Context.xlsx",
     "Job Zones.xlsx",
     "Job Zone Reference.xlsx",
     "Occupation Data.xlsx",
-    "Alternate Titles.xlsx",
+    "Sample of Reported Titles.xlsx",
 ]
-
 
 def fetch() -> Path:
     RAW_DIR.mkdir(parents=True, exist_ok=True)
