@@ -126,12 +126,17 @@ def load_isco_soc2010_crosswalk(path: Path = ISCO_SOC2010_PATH) -> pd.DataFrame:
     """
     if not path.exists():
         raise FileNotFoundError(f"{path} not found. Run fetch_bls_crosswalks.py first.")
-    # BLS's crosswalk workbooks have several title/citation rows above the
-    # real header row, so the header row has to be detected rather than
-    # assumed to be row 0 (see _find_header_row()). Defaults to the first
-    # sheet, "ISCO-08 to 2010 SOC" in this file.
-    raw = pd.read_excel(path, header=None)
-    header_row = _find_header_row(raw, ["ISCO", "SOC"])
+
+    # Like AIOE's Appendix A, BLS crosswalk files carry a title/attribution
+    # block (agency name, revision date, a contact-email note) above the
+    # real header row -- find it rather than assuming row 0.
+    header_row = _find_header_row(path, required_keywords=["ISCO", "SOC"])
+    if header_row is None:
+        raise ValueError(
+            f"Could not find a header row with 'ISCO' and 'SOC' columns in the first "
+            f"20 rows of {path}. Open it manually and check its layout."
+        )
+
     df = pd.read_excel(path, header=header_row)
     df.columns = [str(c).strip() for c in df.columns]
 
@@ -139,7 +144,7 @@ def load_isco_soc2010_crosswalk(path: Path = ISCO_SOC2010_PATH) -> pd.DataFrame:
     soc_col = _find_code_column(df, "SOC", SOC_CODE_PATTERN)
 
     out = df[[isco_col, soc_col]].rename(columns={isco_col: "isco_code", soc_col: "soc_2010"})
-    out["isco_code"] = _clean_code_series(out["isco_code"])
+    out["isco_code"] = _clean_isco_code_series(out["isco_code"])
     out["soc_2010"] = out["soc_2010"].astype(str).str.strip()
     return out.dropna(subset=["isco_code", "soc_2010"])
 
@@ -152,10 +157,14 @@ def load_soc2010_to_soc2018_crosswalk(path: Path = SOC2010_SOC2018_PATH) -> pd.D
     """
     if not path.exists():
         raise FileNotFoundError(f"{path} not found. Run fetch_bls_crosswalks.py first.")
-    # Same header-row situation as load_isco_soc2010_crosswalk() -- BLS puts
-    # title/citation rows above the real header.
-    raw = pd.read_excel(path, header=None)
-    header_row = _find_header_row(raw, ["2010", "2018"])
+
+    header_row = _find_header_row(path, required_keywords=["2010", "2018"])
+    if header_row is None:
+        raise ValueError(
+            f"Could not find a header row with '2010' and '2018' columns in the first "
+            f"20 rows of {path}. Open it manually and check its layout."
+        )
+
     df = pd.read_excel(path, header=header_row)
     df.columns = [str(c).strip() for c in df.columns]
 
@@ -209,7 +218,7 @@ def isco_to_soc(isco_code: str, crosswalk_df: pd.DataFrame | None = None) -> lis
     """
     if crosswalk_df is None:
         crosswalk_df = build_isco_to_soc2018()
-    matches = crosswalk_df[crosswalk_df["isco_code"] == _clean_code(isco_code)]
+    matches = crosswalk_df[crosswalk_df["isco_code"] == _clean_isco_code(isco_code)]
     return matches["soc_2018"].dropna().unique().tolist()
 
 
@@ -237,6 +246,34 @@ def noc_to_onet_soc(noc_code: str, crosswalk_df: pd.DataFrame | None = None) -> 
 # Column-detection helpers
 # ---------------------------------------------------------------------------
 
+def _find_header_row(
+    path: Path,
+    required_keywords: list[str],
+    sheet_name=0,
+    max_header_cell_len: int = 30,
+    max_rows_to_scan: int = 20,
+) -> int | None:
+    """
+    BLS crosswalk files (like AIOE's Appendix A) carry a title/attribution
+    block -- agency name, revision date, a "questions? email us" note --
+    above the real header row, so header=0 would misread that block as
+    column names. This scans the first `max_rows_to_scan` rows for the
+    first one where EVERY keyword in `required_keywords` appears in some
+    SHORT cell (<= max_header_cell_len chars) -- short enough that a long
+    title/attribution sentence can't accidentally match even if it happens
+    to contain the keyword as a substring (e.g. "...soc@bls.gov").
+    """
+    raw = pd.read_excel(path, sheet_name=sheet_name, header=None, nrows=max_rows_to_scan)
+    for i in range(len(raw)):
+        cells = raw.iloc[i].fillna("").astype(str)
+        if all(
+            any(kw.lower() in v.lower() and len(v) <= max_header_cell_len for v in cells)
+            for kw in required_keywords
+        ):
+            return i
+    return None
+
+
 def _clean_code_series(series: pd.Series) -> pd.Series:
     """
     Stringify a code column and strip the ".0" float artifact pandas adds
@@ -253,24 +290,25 @@ def _clean_code(value: str) -> str:
     return re.sub(r"^(\d+)\.0$", r"\1", value)
 
 
-def _find_header_row(raw: pd.DataFrame, keywords: list[str], max_cell_len: int = 40) -> int:
+def _clean_isco_code_series(series: pd.Series) -> pd.Series:
     """
-    Find the first row (within the first 15) where every keyword in
-    `keywords` appears in some short cell (<= max_cell_len chars) -- i.e. a
-    column label, not a title/citation sentence. `raw` must be read with
-    header=None so title rows above the real header don't get consumed.
+    Same float-artifact cleanup as _clean_code_series(), plus zero-padding
+    to 4 digits. ISCO-08's "Armed forces occupations" major group uses
+    codes like "0110" -- if Excel stored that cell as a formatted number
+    rather than text, reading it back gives 110 (leading zero lost), so
+    this re-pads any purely-numeric result back to the canonical 4-digit
+    form. A no-op for codes already 4 digits (e.g. "2512" -> "2512").
     """
-    for i in range(min(15, len(raw))):
-        cells = raw.iloc[i].fillna("").astype(str)
-        if all(
-            any(kw.lower() in v.lower() and len(v) <= max_cell_len for v in cells)
-            for kw in keywords
-        ):
-            return i
-    raise ValueError(
-        f"Could not find a header row containing all of {keywords} in the first 15 rows. "
-        "Open the file manually and check its layout."
-    )
+    cleaned = _clean_code_series(series)
+    is_numeric = cleaned.str.match(r"^\d+$")
+    cleaned = cleaned.where(~is_numeric, cleaned.str.zfill(4))
+    return cleaned
+
+
+def _clean_isco_code(value) -> str:
+    """Same cleanup as _clean_isco_code_series(), for a single lookup value."""
+    value = _clean_code(value)
+    return value.zfill(4) if value.isdigit() else value
 
 
 def _find_column(df: pd.DataFrame, contains: str) -> str:

@@ -68,6 +68,7 @@ import pandas as pd
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from crosswalks.soc_onet_crosswalk import (  # noqa: E402
+    _clean_isco_code_series,
     _find_column,
     build_isco_to_soc2018,
     load_onet_occupation_data,
@@ -215,7 +216,7 @@ def load_ilo_occupation_scores(path: Path = ILO_OCCUPATION_PATH) -> pd.DataFrame
     out = df[["ISCO_08", "mean_score_2025"]].rename(
         columns={"ISCO_08": "isco_code", "mean_score_2025": "ilo_score"}
     )
-    out["isco_code"] = _clean_isco(out["isco_code"])
+    out["isco_code"] = _clean_isco_code_series(out["isco_code"])
     return out.dropna(subset=["isco_code", "ilo_score"]).drop_duplicates(subset=["isco_code"])
 
 
@@ -244,7 +245,7 @@ def load_ilo_task_scores(path: Path = ILO_OCCUPATION_PATH) -> pd.DataFrame:
     out = df[["ISCO_08", "mean_score_2025", "SD_2025"]].rename(
         columns={"ISCO_08": "isco_code", "mean_score_2025": "ilo_task_mean", "SD_2025": "ilo_task_std"}
     )
-    out["isco_code"] = _clean_isco(out["isco_code"])
+    out["isco_code"] = _clean_isco_code_series(out["isco_code"])
     return out.dropna(subset=["isco_code", "ilo_task_mean"]).drop_duplicates(subset=["isco_code"])
 
 
@@ -378,16 +379,6 @@ def save(master: pd.DataFrame) -> Path:
     out_path = PROCESSED_DIR / "master_occupations.csv"
     master.to_csv(out_path, index=False)
     return out_path
-
-
-# ---------------------------------------------------------------------------
-# Small helpers
-# ---------------------------------------------------------------------------
-
-def _clean_isco(series: pd.Series) -> pd.Series:
-    """Same float-artifact cleanup as soc_onet_crosswalk._clean_code_series (ISCO codes only)."""
-    cleaned = series.astype(str).str.strip()
-    return cleaned.str.replace(r"^(\d+)\.0$", r"\1", regex=True)
 
 
 if __name__ == "__main__":
