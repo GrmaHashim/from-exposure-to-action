@@ -313,6 +313,51 @@ def load_ilo_task_scores(path: Path = ILO_OCCUPATION_PATH) -> pd.DataFrame:
     return out.dropna(subset=["isco_code", "ilo_task_mean"]).drop_duplicates(subset=["isco_code"])
 
 
+def load_ilo_task_detail(path: Path = ILO_OCCUPATION_PATH) -> pd.DataFrame:
+    """
+    Load ILO's TASK-level detail -- NOT deduplicated to one row per
+    occupation like load_ilo_task_scores() -- for RQ3's "which tasks within
+    an occupation carry the highest ILO exposure scores" question.
+
+    Confirmed via real file inspection (not assumed): score_2025 is a
+    genuine per-TASK score that varies across taskID within the same
+    ISCO_08 occupation (e.g. two tasks under ISCO 1112 "Senior Government
+    Officials" scored 0.350 and 0.435), unlike mean_score_2025/SD_2025
+    which are occupation-level aggregates repeated identically across every
+    task row under that occupation -- those are what
+    load_ilo_occupation_scores()/load_ilo_task_scores() already use.
+    Task_ISCO carries the actual task description text.
+
+    Standalone / illustrative use only, same pattern as
+    load_statcan_noc_exposure() -- NOT called from merge_all(), since
+    task-level granularity doesn't fit the one-row-per-occupation master
+    table. Call this directly from the notebook's RQ3 section instead.
+    """
+    if not path.exists():
+        raise FileNotFoundError(f"{path} not found. Run fetch_ilo_genai.py first.")
+    df = pd.read_excel(path)
+    df.columns = [str(c).strip() for c in df.columns]
+
+    required = ["ISCO_08", "Title", "taskID", "Task_ISCO", "score_2025", "mean_score_2025"]
+    missing = [c for c in required if c not in df.columns]
+    if missing:
+        raise KeyError(
+            f"Expected column(s) {missing} not found in {path}. "
+            f"Available columns: {list(df.columns)}"
+        )
+
+    out = df[required].rename(columns={
+        "ISCO_08": "isco_code",
+        "Title": "occupation_title",
+        "taskID": "task_id",
+        "Task_ISCO": "task_description",
+        "score_2025": "task_score_2025",
+        "mean_score_2025": "occupation_mean_score_2025",
+    })
+    out["isco_code"] = _clean_isco_code_series(out["isco_code"])
+    return out.dropna(subset=["isco_code", "task_score_2025"])
+
+
 def classify_impact_pattern(ilo_by_isco: pd.DataFrame) -> pd.DataFrame:
     """
     Add an `impact_pattern` column using the provisional rule described in
