@@ -9,20 +9,54 @@ Planned columns (see docs/From_Exposure_to_Action_Data_Dictionary.xlsx ->
     - aioe_score                          (AIOE)                              [x] this pass
     - ilo_score                           (ILO occupation-level, ISCO-08)     [x] this pass
     - ilo_task_mean / ilo_task_std        (ILO task-level, ISCO-08)           [x] this pass
-    - oecd_exposure_score                 (OECD AI Exposure Measure)          [ ] later pass
-    - gpts_are_gpts_score                 (Eloundou et al.)                   [ ] later pass
+    - oecd_exposure_score                 (OECD AI Exposure Measure)          [ ] DROPPED -- see note below
+    - gpts_are_gpts_score                 (Eloundou et al., dv_rating_beta)   [x] this pass
+    - gpts_are_gpts_human_score           (Eloundou et al., human_rating_beta) [x] this pass, reference only
     - composite_exposure_score            (standardized average of available indices)
     - impact_pattern                      (Automation / Transformation / Augmentation) [x] this pass, provisional
-    - anthropic_usage_automation_share    (Anthropic Economic Index)          [ ] later pass
-    - anthropic_usage_augmentation_share  (Anthropic Economic Index)          [ ] later pass
-    - employment_growth_rate              (BLS OEWS, multi-year)              [ ] later pass
+    - anthropic_1p_automation_share       (Anthropic Economic Index, 1P API)  [x] this pass
+    - anthropic_1p_augmentation_share     (Anthropic Economic Index, 1P API)  [x] this pass
+    - anthropic_claude_ai_*_share         (Anthropic Economic Index, claude.ai) [ ] blocked -- see note below
+    - employment_growth_rate              (BLS OEWS, multi-year, CAGR 2023->2025) [x] this pass
     - job_zone                            (O*NET — education/experience/training)  [x] this pass
     - skill_profile_vector                (O*NET Skills/Abilities, for similarity calc) [x] this pass
 
-This pass joins AIOE + O*NET + ILO. It is written so that adding OECD /
-GPTs-are-GPTs / BLS / Anthropic later is just: write that fetch_*.py, add
-one loader function below in the same shape, and add its column to
-`merge_all()`. Nothing else needs to change.
+OECD AI Exposure Measure: DROPPED from this project. Verified (not assumed)
+that no downloadable dataset file exists anywhere yet -- OECD AI Papers
+No. 59 describes the results in its PDF text only. Not a bug to fix;
+documented as a known limitation in src/data_acquisition/README.md.
+
+Anthropic Economic Index: the 1P API release (global-only, unambiguous) is
+integrated this pass. The claude.ai release also exists and is richer (it
+would let RQ2's cross-check use the larger, more representative Claude.ai
+usage base instead of just the API), but it carries per-COUNTRY breakdowns
+and multiple classification hierarchy_level values, and which exact
+geo_id/geo_level value is the global aggregate hasn't been confirmed yet --
+integrating it without that confirmation risks silently joining one
+country's numbers instead of the worldwide total. Left for a later pass
+once confirmed; 1P API alone is enough to unblock RQ2's cross-check.
+
+This pass joins AIOE + O*NET + ILO + GPTs-are-GPTs + Anthropic (1P API) +
+BLS OEWS (employment_growth_rate). It is written so that adding OECD (if it
+ever ships) / the claude.ai AEI release later is just: write/finish that
+fetch_*.py, add one loader function below in the same shape, and add its
+column to `merge_all()`. Nothing else needs to change.
+
+BLS OEWS: bls.gov blocks scripted downloads at the WAF level (same as the
+ISCO/SOC crosswalks), so `data/raw/oesm23nat.zip`, `oesm24nat.zip`, and
+`oesm25nat.zip` must be downloaded manually (see
+src/data_acquisition/README.md). `load_bls_oews_growth()` reduces each
+year's national "All Data" table to one economy-wide, detailed-occupation
+row per SOC code, then computes employment_growth_rate as the annualized
+(CAGR) change in total employment between the earliest and latest year
+present. This is OPTIONAL at merge_all() time -- if fewer than 2 of the 3
+zip files are present, merge_all() skips it and employment_growth_rate is
+simply absent from the master table, rather than the whole run failing.
+
+Statistics Canada is intentionally NOT loaded here -- see
+load_statcan_noc_exposure() below, which is appendix-only (NOC-keyed, no
+SOC crosswalk, feeds one standalone comparison chart in the notebook, not
+the master table) per this project's guardrails.
 
 impact_pattern classification (provisional): ILO's task-level file gives
 each occupation a distribution of exposure scores across its own tasks.
@@ -54,12 +88,17 @@ Requires (run the matching fetch_*.py first for anything missing):
     data/raw/ILO_Final_Scores_ISCO08_Gmyrek_et_al_2025.xlsx
     data/raw/ISCO_SOC_2010_Crosswalk.xls
     data/raw/SOC_2010_to_2018_Crosswalk.xlsx
+    data/raw/GPTs_are_GPTs_occ_level.csv
+    data/raw/AEI_aei_1p_api_<release-date>.csv
+    data/raw/oesm23nat.zip, oesm24nat.zip, oesm25nat.zip (optional -- see
+        the BLS OEWS note above; needs >=2 of the 3 for employment_growth_rate)
 
 (fetch_ilo_genai.py also downloads ILO_4digits_with_tasks.xlsx, but that
 file turns out to hold only categorical exposure labels rather than a
 numeric score -- see load_ilo_task_scores()'s docstring -- so it isn't
 read by this script.)
 """
+import zipfile
 from pathlib import Path
 
 import numpy as np
@@ -84,6 +123,31 @@ AIOE_PATH = RAW_DIR / "AIOE_DataAppendix.xlsx"
 JOB_ZONES_PATH = ONET_DIR / "Job Zones.xlsx"
 SKILLS_PATH = ONET_DIR / "Essential Skills.xlsx"
 ILO_OCCUPATION_PATH = RAW_DIR / "ILO_Final_Scores_ISCO08_Gmyrek_et_al_2025.xlsx"
+GPTS_ARE_GPTS_PATH = RAW_DIR / "GPTs_are_GPTs_occ_level.csv"
+STATCAN_HTML_PATH = RAW_DIR / "StatCan_11F0019M2024005_AI_Occupational_Exposure.html"
+BLS_OEWS_ZIPS = {
+    2023: RAW_DIR / "oesm23nat.zip",
+    2024: RAW_DIR / "oesm24nat.zip",
+    2025: RAW_DIR / "oesm25nat.zip",
+}
+
+# fetch_anthropic_economic_index.py's output filenames carry the release
+# date (e.g. AEI_aei_1p_api_2026-06-26.csv) so re-running it after a new
+# Anthropic release doesn't silently overwrite the previous snapshot -- good
+# for data provenance, but it means we can't hard-code today's date here.
+# Glob for the pattern and take the lexicographically-latest match (works
+# because the date is in YYYY-MM-DD order) instead.
+AEI_1P_API_GLOB = "AEI_aei_1p_api_*.csv"
+
+
+def _latest_matching_file(directory: Path, pattern: str) -> Path:
+    matches = sorted(directory.glob(pattern))
+    if not matches:
+        raise FileNotFoundError(
+            f"No file matching '{pattern}' found in {directory}. "
+            "Run fetch_anthropic_economic_index.py first."
+        )
+    return matches[-1]
 
 
 # ---------------------------------------------------------------------------
@@ -272,6 +336,278 @@ def classify_impact_pattern(ilo_by_isco: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def load_gpts_are_gpts_scores(path: Path = GPTS_ARE_GPTS_PATH) -> pd.DataFrame:
+    """
+    Load "GPTs are GPTs" exposure scores, keyed by O*NET-SOC code.
+
+    Uses dv_rating_beta (GPT-4-generated label, beta = E1 + 0.5*E2) as this
+    project's gpts_are_gpts_score, for consistency with AIOE/ILO -- all
+    three are automated/model-based measures, rather than a one-off human
+    annotation exercise. IMPORTANT: the paper's own well-known headline
+    figures ("80% of workers have >=10% of tasks exposed, 19% have >=50%")
+    are based on human_rating_beta, NOT dv_rating_beta -- confirmed against
+    the paper's own text, not inferred (see fetch_gpts_are_gpts.py's module
+    docstring). human_rating_beta is kept alongside as
+    gpts_are_gpts_human_score so that headline figure can still be cited
+    correctly, and so the two can be cross-checked against each other (the
+    paper reports they're highly correlated -- worth re-verifying here, same
+    pattern as RQ1's AIOE-vs-ILO Spearman check).
+    """
+    if not path.exists():
+        raise FileNotFoundError(f"{path} not found. Run fetch_gpts_are_gpts.py first.")
+    df = pd.read_csv(path)
+    df.columns = [str(c).strip() for c in df.columns]
+    code_col = _find_column(df, "O*NET-SOC Code")
+    out = df[[code_col, "dv_rating_beta", "human_rating_beta"]].rename(
+        columns={
+            code_col: "onet_soc_code",
+            "dv_rating_beta": "gpts_are_gpts_score",
+            "human_rating_beta": "gpts_are_gpts_human_score",
+        }
+    )
+    out["onet_soc_code"] = out["onet_soc_code"].astype(str).str.strip()
+    out["soc_code"] = out["onet_soc_code"].apply(onet_soc_to_soc)
+    return out.dropna(subset=["onet_soc_code"])
+
+
+def load_anthropic_1p_api_usage(path: Path | None = None) -> pd.DataFrame:
+    """
+    Load Anthropic Economic Index usage shares from the 1P API release,
+    keyed by O*NET-SOC code.
+
+    This is real-world *usage evidence* (share of real Claude conversations
+    per occupation falling in each collaboration bucket), not a theoretical
+    exposure score like AIOE/ILO/GPTs-are-GPTs -- it feeds RQ2's cross-check
+    of the provisional impact_pattern classification, and is kept OUT of
+    composite_exposure_score.
+
+    Only the 1P API release is used this pass (global-only, unambiguous).
+    The richer claude.ai release also exists but has per-country breakdowns
+    and multiple occupation hierarchy_level values whose "global total" row
+    isn't confirmed yet -- see this module's docstring.
+
+    category_name == "soc_occupation" and hierarchy_level == 0 selects the
+    detailed-occupation-level rows (matching a full O*NET-SOC code like
+    "49-9021.00") rather than SOC major-group rollups (hierarchy_level == 1,
+    node_external_id like "49").
+    """
+    if path is None:
+        path = _latest_matching_file(RAW_DIR, AEI_1P_API_GLOB)
+    if not path.exists():
+        raise FileNotFoundError(f"{path} not found. Run fetch_anthropic_economic_index.py first.")
+
+    df = pd.read_csv(path)
+    df.columns = [str(c).strip() for c in df.columns]
+
+    detailed = df[(df["category_name"] == "soc_occupation") & (df["hierarchy_level"] == 0)]
+    wide = detailed.pivot_table(
+        index="node_external_id", columns="metric_id", values="value", aggfunc="mean"
+    )
+    keep = {
+        "collaboration_bucket_automation_pct": "anthropic_1p_automation_share",
+        "collaboration_bucket_augmentation_pct": "anthropic_1p_augmentation_share",
+    }
+    missing = [c for c in keep if c not in wide.columns]
+    if missing:
+        raise KeyError(
+            f"Expected metric_id value(s) {missing} not found in {path}. "
+            f"Available metric_id values: {sorted(detailed['metric_id'].unique())}"
+        )
+    wide = wide[list(keep)].rename(columns=keep).reset_index().rename(
+        columns={"node_external_id": "onet_soc_code"}
+    )
+    wide["soc_code"] = wide["onet_soc_code"].apply(onet_soc_to_soc)
+    return wide
+
+
+def load_statcan_noc_exposure(path: Path = STATCAN_HTML_PATH) -> pd.DataFrame:
+    """
+    Parse Statistics Canada's Table A.2 (May 2021) from the saved article
+    page: NOC occupation groups with Employment, AIOE, Potential
+    complementarity, Complementarity-adjusted AIOE, and 3 exposure-percentage
+    columns.
+
+    APPENDIX-ONLY (see README/Data-Dictionary guardrails: one Canada
+    comparison chart, not a parallel pipeline) -- deliberately NOT called
+    from merge_all() or joined onto the SOC-keyed master table. NOC is used
+    as-is; no crosswalk to SOC is built or needed for a single standalone
+    comparison chart. Call this directly from the notebook's Canada-appendix
+    section instead.
+
+    Table A.2 bundles many demographic breakdowns (Occupation, Industry,
+    Education, ...) into ONE HTML <table> with sub-header rows between
+    sections (see fetch_statcan_canada.py's docstring) -- this isolates only
+    the rows between the "Occupation" and "Industry" sub-headers.
+    """
+    if not path.exists():
+        raise FileNotFoundError(f"{path} not found. Run fetch_statcan_canada.py first.")
+
+    tables = pd.read_html(path)
+    target = None
+    for t in tables:
+        first_col = t.iloc[:, 0].astype(str)
+        if (first_col == "Occupation").any() and (first_col == "Industry").any():
+            target = t
+            break
+    if target is None:
+        raise ValueError(
+            f"Could not find the multi-section demographic table (Table A.2) in "
+            f"{path}. Open it manually and check its layout -- the page structure "
+            "may have changed."
+        )
+
+    target = target.reset_index(drop=True)
+    # pd.read_html gives this table a 2-row MultiIndex header (category name
+    # e.g. "Employment" over a unit label e.g. "number"/"average index"/
+    # "percent") -- flatten to the category name alone (the unit is
+    # redundant once the column is named "Employment"/"AIOE"/etc.), and name
+    # the unlabelled first column "label". Without this, assigning a plain
+    # string column name like "noc_code" onto a MultiIndex-columned frame
+    # silently creates a ("noc_code", "") key instead, breaking the final
+    # occ[out_cols] selection below.
+    if isinstance(target.columns, pd.MultiIndex):
+        target.columns = [
+            "label" if str(top).startswith("Unnamed") else str(top)
+            for top, _ in target.columns
+        ]
+    else:
+        target = target.rename(columns={target.columns[0]: "label"})
+    label_col = "label"
+    start = target.index[target[label_col].astype(str) == "Occupation"][0] + 1
+    end = target.index[target[label_col].astype(str) == "Industry"][0]
+    occ = target.iloc[start:end].copy()
+
+    # NOC labels can carry several comma-separated codes (e.g. "Support
+    # occupations in sales and service (66, 67)") when StatCan groups
+    # multiple detailed NOC codes under one aggregated label -- \d+ alone
+    # only matches single-code labels and silently drops the rest via the
+    # dropna() below (12 of these 28 groups are multi-code), so capture the
+    # full parenthetical content instead.
+    occ["noc_code"] = occ[label_col].astype(str).str.extract(r"\(([\d,\s]+)\)")
+    occ["occupation_group"] = (
+        occ[label_col].astype(str).str.replace(r"\s*\([\d,\s]+\)\s*$", "", regex=True).str.strip()
+    )
+
+    numeric_cols = [c for c in occ.columns if c not in (label_col, "noc_code", "occupation_group")]
+    for c in numeric_cols:
+        occ[c] = pd.to_numeric(
+            occ[c].astype(str).str.replace(",", "", regex=False).str.replace("%", "", regex=False),
+            errors="coerce",
+        )
+
+    out_cols = ["noc_code", "occupation_group"] + numeric_cols
+    return occ[out_cols].dropna(subset=["noc_code"]).reset_index(drop=True)
+
+
+def _read_oews_zip(zip_path: Path, year: int) -> pd.DataFrame:
+    """
+    Read the one national "All Data" .xlsx inside a single oesmYYnat.zip and
+    reduce it to one row per detailed (6-digit) SOC code: total employment
+    for that occupation, economy-wide (all industries, all ownership types).
+
+    The "All Data" National file bundles several things this project does
+    NOT want mixed into one occupation's employment figure:
+      - per-industry breakdowns (NAICS != the economy-wide total code)
+      - SOC rollups above the detailed level (O_GROUP == "major"/"minor"/
+        "broad"/"total" as well as "detailed") -- keeping those in would
+        double count (e.g. a major-group row AND its detailed occupations
+        both present under the same soc_code-shaped OCC_CODE column)
+
+    NAICS "000000" is the standard BLS code for the cross-industry total
+    row; O_GROUP is matched case-insensitively against "detailed" rather
+    than assumed to be a fixed string, since this project has already found
+    one BLS file (the ISCO/SOC crosswalk) with inconsistent header/label
+    formatting across releases.
+    """
+    with zipfile.ZipFile(zip_path) as zf:
+        xlsx_names = [n for n in zf.namelist() if n.lower().endswith(".xlsx")]
+        if not xlsx_names:
+            raise FileNotFoundError(f"No .xlsx file found inside {zip_path}.")
+        with zf.open(xlsx_names[0]) as f:
+            df = pd.read_excel(f)
+    df.columns = [str(c).strip() for c in df.columns]
+
+    naics_col = _find_column(df, "NAICS")
+    ogroup_col = _find_column(df, "O_GROUP")
+    occ_col = _find_column(df, "OCC_CODE")
+    emp_col = _find_column(df, "TOT_EMP")
+
+    naics_str = df[naics_col].astype(str).str.strip()
+    cross_industry = df[naics_str.isin(["000000", "0"])]
+    if cross_industry.empty:
+        title_col = _find_column(df, "NAICS_TITLE")
+        cross_industry = df[
+            df[title_col].astype(str).str.contains("cross-industry", case=False, na=False)
+        ]
+    if cross_industry.empty:
+        raise ValueError(
+            f"Could not find the cross-industry (economy-wide) total rows in {zip_path}. "
+            f"Distinct {naics_col} values seen: {sorted(naics_str.unique())[:10]}..."
+        )
+
+    detailed = cross_industry[
+        cross_industry[ogroup_col].astype(str).str.strip().str.lower() == "detailed"
+    ]
+    if detailed.empty:
+        raise ValueError(
+            f"Could not find O_GROUP == 'detailed' rows in {zip_path}. Available "
+            f"{ogroup_col} values: {sorted(cross_industry[ogroup_col].dropna().unique())}"
+        )
+
+    out = detailed[[occ_col, emp_col]].rename(
+        columns={occ_col: "soc_code", emp_col: f"tot_emp_{year}"}
+    )
+    out["soc_code"] = out["soc_code"].astype(str).str.strip()
+    out[f"tot_emp_{year}"] = pd.to_numeric(
+        out[f"tot_emp_{year}"].astype(str).str.replace(",", "", regex=False), errors="coerce"
+    )
+    return out.dropna(subset=["soc_code"]).drop_duplicates(subset=["soc_code"])
+
+
+def load_bls_oews_growth(zips: dict = BLS_OEWS_ZIPS) -> pd.DataFrame:
+    """
+    Compute employment_growth_rate (annualized, i.e. CAGR) per SOC code from
+    BLS OEWS "All Data" National tables across however many years are present
+    in `zips`.
+
+    Uses whichever years are actually available rather than hard-coding
+    "2023 to 2025", so this keeps working if a future year's file is added
+    or one is temporarily missing -- though at least 2 years are required to
+    compute any growth rate at all.
+
+    bls.gov blocks scripted downloads (WAF-level 403, same as
+    fetch_bls_crosswalks.py) -- these 3 zip files must be downloaded
+    manually; see src/data_acquisition/README.md.
+    """
+    present = {y: p for y, p in zips.items() if p.exists()}
+    if len(present) < 2:
+        missing = [str(p) for y, p in zips.items() if y not in present]
+        raise FileNotFoundError(
+            "Need at least 2 years of BLS OEWS data to compute a growth rate; "
+            f"only found {len(present)}. Missing: {missing}. Download 'All Data' "
+            "National tables manually from bls.gov/oes/tables.htm (see "
+            "src/data_acquisition/README.md)."
+        )
+
+    years = sorted(present)
+    per_year = [_read_oews_zip(present[y], y) for y in years]
+    merged = per_year[0]
+    for df in per_year[1:]:
+        merged = merged.merge(df, on="soc_code", how="outer")
+
+    first_year, last_year = years[0], years[-1]
+    span = last_year - first_year
+    first_col, last_col = f"tot_emp_{first_year}", f"tot_emp_{last_year}"
+    valid = (merged[first_col] > 0) & merged[last_col].notna()
+    merged["employment_growth_rate"] = np.nan
+    merged.loc[valid, "employment_growth_rate"] = (
+        (merged.loc[valid, last_col] / merged.loc[valid, first_col]) ** (1 / span) - 1
+    )
+
+    emp_cols = [f"tot_emp_{y}" for y in years]
+    return merged[["soc_code"] + emp_cols + ["employment_growth_rate"]]
+
+
 # ---------------------------------------------------------------------------
 # Step 2: join everything into one occupation-level master table.
 # ---------------------------------------------------------------------------
@@ -323,6 +659,33 @@ def merge_all() -> pd.DataFrame:
     ).reset_index()
     print(f"  {len(ilo_by_soc)} SOC 2018 occupations with ILO data after aggregation")
 
+    print("Loading GPTs-are-GPTs exposure scores (O*NET-SOC) ...")
+    gpts = load_gpts_are_gpts_scores()
+    gpts_by_soc = gpts.groupby("soc_code").agg(
+        gpts_are_gpts_score=("gpts_are_gpts_score", "mean"),
+        gpts_are_gpts_human_score=("gpts_are_gpts_human_score", "mean"),
+    ).reset_index()
+    print(f"  {len(gpts_by_soc)} SOC occupations with a GPTs-are-GPTs score")
+
+    print("Loading Anthropic Economic Index usage shares (1P API, O*NET-SOC) ...")
+    anthropic = load_anthropic_1p_api_usage()
+    anthropic_by_soc = anthropic.groupby("soc_code").agg(
+        anthropic_1p_automation_share=("anthropic_1p_automation_share", "mean"),
+        anthropic_1p_augmentation_share=("anthropic_1p_augmentation_share", "mean"),
+    ).reset_index()
+    print(f"  {len(anthropic_by_soc)} SOC occupations with Anthropic usage data")
+
+    bls_oews_by_soc = None
+    if sum(p.exists() for p in BLS_OEWS_ZIPS.values()) >= 2:
+        print("Loading BLS OEWS employment (multi-year) and computing employment_growth_rate ...")
+        bls_oews = load_bls_oews_growth()
+        bls_oews_by_soc = bls_oews.groupby("soc_code").agg(
+            {c: "mean" for c in bls_oews.columns if c != "soc_code"}
+        ).reset_index()
+        print(f"  {len(bls_oews_by_soc)} SOC occupations with a computed employment_growth_rate")
+    else:
+        print("Skipping BLS OEWS (fewer than 2 years of data/raw/oesm*nat.zip present) ...")
+
     # O*NET-SOC is finer-grained than SOC (one SOC code can map to several
     # O*NET-SOC codes). Attach job zone + skills at the O*NET-SOC level
     # first, then average up to the SOC level so every source lines up on
@@ -341,9 +704,13 @@ def merge_all() -> pd.DataFrame:
     )
     onet_by_soc = onet_by_soc.merge(titles, on="soc_code", how="left")
 
-    print("Merging AIOE + O*NET + ILO on soc_code ...")
+    print("Merging AIOE + O*NET + ILO + GPTs-are-GPTs + Anthropic on soc_code ...")
     master = aioe.merge(onet_by_soc, on="soc_code", how="outer", suffixes=("_aioe", "_onet"))
     master = master.merge(ilo_by_soc, on="soc_code", how="outer")
+    master = master.merge(gpts_by_soc, on="soc_code", how="outer")
+    master = master.merge(anthropic_by_soc, on="soc_code", how="outer")
+    if bls_oews_by_soc is not None:
+        master = master.merge(bls_oews_by_soc, on="soc_code", how="outer")
 
     # Prefer AIOE's own title when both are present; fall back to O*NET's.
     if "occupation_title" in master.columns:
@@ -353,11 +720,15 @@ def merge_all() -> pd.DataFrame:
     master = master.drop(columns=[c for c in ["onet_title"] if c in master.columns])
 
     # Composite exposure score: mean of whichever standardized (z-scored)
-    # index columns are available per row, so an occupation missing one
-    # index (e.g. no ILO match) still gets a score from the other(s). Once
-    # fetch_oecd_exposure.py / fetch_gpts_are_gpts.py exist, add their
-    # z-scored columns to `index_cols` below -- nothing else needs to change.
-    index_cols = ["aioe_score", "ilo_score"]
+    # index columns are available per row, so an occupation missing one or
+    # more indices still gets a score from the other(s). gpts_are_gpts_score
+    # uses dv_rating_beta (see load_gpts_are_gpts_scores()'s docstring for
+    # why, not human_rating_beta) to stay consistent with AIOE/ILO as
+    # automated/model-based measures. anthropic_1p_automation_share/
+    # augmentation_share are deliberately excluded -- they're real usage
+    # evidence, not a theoretical exposure score, and belong in RQ2's
+    # cross-check instead (see this module's docstring).
+    index_cols = ["aioe_score", "ilo_score", "gpts_are_gpts_score"]
     z_cols = []
     for col in index_cols:
         z_col = f"_z_{col}"
@@ -367,7 +738,14 @@ def merge_all() -> pd.DataFrame:
     master = master.drop(columns=z_cols)
 
     cols_first = ["soc_code", "occupation_title", "aioe_score", "ilo_score",
-                  "composite_exposure_score", "impact_pattern", "job_zone"]
+                  "gpts_are_gpts_score", "gpts_are_gpts_human_score",
+                  "composite_exposure_score", "impact_pattern", "job_zone",
+                  "anthropic_1p_automation_share", "anthropic_1p_augmentation_share",
+                  "employment_growth_rate"]
+    # employment_growth_rate (and the underlying BLS OEWS zips) is optional
+    # -- only present once >=2 years of data/raw/oesm*nat.zip are supplied --
+    # so filter cols_first down to columns that actually exist this run.
+    cols_first = [c for c in cols_first if c in master.columns]
     other_cols = [c for c in master.columns if c not in cols_first]
     master = master[cols_first + other_cols]
 

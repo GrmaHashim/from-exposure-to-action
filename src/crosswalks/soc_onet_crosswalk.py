@@ -262,15 +262,33 @@ def _find_header_row(
     SHORT cell (<= max_header_cell_len chars) -- short enough that a long
     title/attribution sentence can't accidentally match even if it happens
     to contain the keyword as a substring (e.g. "...soc@bls.gov").
+
+    A title cell can still be short AND mention every keyword at once (e.g.
+    "ISCO-08 to 2010 SOC Crosswalk" contains both "ISCO" and "SOC" in one
+    cell, under max_header_cell_len) -- the same false-positive shape as
+    AIOE's "Appendix A: AIOE by SOC code" title cell. Guard against it the
+    same way load_aioe() does: track WHICH cell position(s) satisfy each
+    keyword, and reject a row where every keyword's matching positions are
+    identical (i.e. only one shared cell satisfies all of them) -- a real
+    header row has each keyword in its own column, so their position sets
+    differ. Found via a synthetic fixture reproducing this exact scenario,
+    not (yet) observed in a real downloaded file.
     """
     raw = pd.read_excel(path, sheet_name=sheet_name, header=None, nrows=max_rows_to_scan)
     for i in range(len(raw)):
         cells = raw.iloc[i].fillna("").astype(str)
-        if all(
-            any(kw.lower() in v.lower() and len(v) <= max_header_cell_len for v in cells)
-            for kw in required_keywords
-        ):
-            return i
+        positions_by_keyword = []
+        for kw in required_keywords:
+            positions = {
+                j for j, v in enumerate(cells)
+                if kw.lower() in v.lower() and len(v) <= max_header_cell_len
+            }
+            if not positions:
+                break
+            positions_by_keyword.append(frozenset(positions))
+        else:
+            if len(set(positions_by_keyword)) > 1 or len(required_keywords) == 1:
+                return i
     return None
 
 
