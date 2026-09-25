@@ -1,7 +1,17 @@
 """
 Professional/reskilling layer: for a chosen (typically high-exposure)
-occupation, find the most skill-similar occupations with a meaningfully
-lower composite exposure score, and show the skill gap for each.
+occupation, find the occupations whose skill EMPHASIS pattern is most
+aligned with it (not raw skill-rating similarity -- see
+nearest_lower_exposure_alternatives()'s docstring for why raw cosine
+similarity is misleading) among those with a meaningfully lower composite
+exposure score, show the skill gap for each, and tag whether the
+alternative shares a field of study (NCES CIP-SOC crosswalk).
+
+Skill alignment is computed over three combined O*NET column families
+(see utils.get_skill_cols()): the 10 generic Basic Skills, the 24 more
+specific Cross-Functional/Technical Skills, and the 33 Knowledge domains --
+not just the 10 Basic Skills alone, which real-data testing showed was too
+generic to meaningfully distinguish occupations.
 
 Mirrors notebooks/01_exploratory_analysis.ipynb's Professional layer
 section, but calls the shared nearest_lower_exposure_alternatives()
@@ -19,7 +29,14 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from utils import get_alternatives, get_skill_cols, load_master
+from utils import (
+    field_of_study_tag,
+    get_alternatives,
+    get_skill_cols,
+    load_cip_soc_crosswalk,
+    load_master,
+    typical_fields_of_study,
+)
 
 st.set_page_config(page_title="Reskilling Alternatives", page_icon="\U0001F504", layout="wide")
 st.title("Nearest lower-exposure alternatives")
@@ -27,11 +44,11 @@ st.title("Nearest lower-exposure alternatives")
 st.markdown(
     """
 This is **evidence to weigh, not a recommendation**. It ranks occupations by how
-similar their required skill profile is to your starting occupation (O\\*NET Basic
-Skills importance ratings, cosine similarity) — restricted to occupations with a
-meaningfully lower composite AI-exposure score. A close skill match with a real
-exposure gap is worth investigating further; it is not a guarantee of an easier
-transition.
+closely their skill EMPHASIS pattern lines up with your starting occupation's —
+which skills matter *relatively* more or less there, compared to the typical
+occupation — restricted to occupations with a meaningfully lower composite
+AI-exposure score. A close alignment with a real exposure gap is worth
+investigating further; it is not a guarantee of an easier transition.
 """
 )
 
@@ -43,11 +60,39 @@ with st.expander("What do the terms on this page mean?"):
 It blends several independent research indices, standardized onto the same scale
 so they can be compared and averaged.
 
-**Skill similarity** — how alike two occupations' *required* skills are (not your
-personal skills), from 0% to 100%. It compares each occupation's O\\*NET skill
-profile (how important things like Critical Thinking, Mathematics, or Active
-Listening are rated for that occupation) and measures how closely the patterns
-match. 100% would mean identical skill requirements.
+**Skill alignment** — how closely two occupations' skill *emphasis patterns*
+match, on a scale that's typically around -1 to +1 (higher = more aligned; 0 or
+negative = little to no meaningful alignment). This is **not** a "percent match" —
+it compares which skills each occupation leans on *more than usual*, relative to
+the typical occupation, not the raw importance ratings themselves. That
+distinction matters: almost every occupation rates baseline skills like Active
+Listening or Reading Comprehension as moderately-to-highly important, so
+comparing raw ratings directly would make nearly any two occupations look
+"similar" just because they share that common baseline. This tool corrects for
+it by looking at each occupation's *distinctive* profile instead, across three
+combined O\\*NET sources: 10 general Basic Skills (Reading Comprehension,
+Mathematics, Critical Thinking...), 24 more specific Cross-Functional/Technical
+Skills (Programming, Troubleshooting, Repairing, Negotiation...), and 33
+Knowledge domains (Computers and Electronics, Mechanical, Medicine and
+Dentistry...) — so, for example, Data Scientists' emphasis on Programming and
+Computers and Electronics is what gets compared, not the fact that both a data
+scientist and an electrician need to be able to read and communicate at a
+basic level.
+
+**Field of study** — whether the U.S. Dept. of Education's official CIP-SOC
+crosswalk lists at least one college/diploma program in common as typically
+leading to both occupations. *Same field of study* = a realistic path without
+a new degree is plausible on paper. *Different field of study* = the
+government crosswalk lists no shared program — a real signal worth taking
+seriously (you generally can't become a physician on skill alignment alone),
+but read it as "different formal program," not "unrelated in practice." The
+CIP taxonomy is sometimes more fine-grained than real career ladders: for
+example, it treats Registered Nursing and Licensed Practical/Vocational
+Nursing as two entirely separate programs with zero overlap, even though
+RN-to-LPN is one of the most walkable transitions in healthcare. *Not in
+field-of-study data* means the crosswalk simply has no entry for one of the
+two occupations — not a "same" or "different" verdict, just missing
+information.
 
 **Minimum exposure gap required** *(slider)* — how much lower an alternative
 occupation's exposure score must be than your starting occupation's, before it's
@@ -61,7 +106,8 @@ the alternative occupation's O\\*NET importance rating (1-5 scale) minus your
 starting occupation's rating for that same skill. It describes what the two
 *occupations* typically require, not how good you personally are at that skill.
 Green/positive = that skill matters more in the alternative role (a possible gap
-to close); red/negative = it matters less there.
+to close); red/negative = it matters less there. (Unlike Skill alignment above,
+this one uses the raw 1-5 ratings, so it stays easy to read directly.)
 """
     )
 
@@ -73,8 +119,13 @@ except (FileNotFoundError, ValueError) as e:
 
 skill_cols = get_skill_cols(master)
 if not skill_cols:
-    st.error("No O*NET skill columns (skill__*) found in the dataset — this page needs them.")
+    st.error(
+        "No O*NET skill/knowledge columns (skill__*, xfskill__*, knowledge__*) found in the "
+        "dataset — this page needs them."
+    )
     st.stop()
+
+cip_soc_df = load_cip_soc_crosswalk()
 
 usable = master.dropna(subset=skill_cols + ["composite_exposure_score"])
 titled = usable.dropna(subset=["occupation_title"]).sort_values("occupation_title")
@@ -88,7 +139,7 @@ with col_select:
 with col_n:
     n = st.slider(
         "How many alternatives", min_value=3, max_value=15, value=5,
-        help="Number of alternative occupations to list, ranked by skill similarity.",
+        help="Number of alternative occupations to list, ranked by skill alignment.",
     )
 with col_gap:
     min_gap = st.slider(
@@ -110,6 +161,14 @@ source_row = master.loc[master["soc_code"] == soc_code].iloc[0]
 
 st.subheader(f"Alternatives to: {source_row['occupation_title']}")
 st.caption(f"Its composite exposure score: {source_row['composite_exposure_score']:.2f}")
+source_fields = typical_fields_of_study(soc_code, cip_soc_df)
+if source_fields:
+    st.caption(
+        "Typical field(s) of study for this occupation (NCES CIP-SOC crosswalk): "
+        + ", ".join(source_fields) + ("..." if len(source_fields) == 6 else "")
+    )
+elif cip_soc_df is not None:
+    st.caption("No field-of-study data found for this occupation in the NCES crosswalk.")
 
 results = get_alternatives(soc_code, master, skill_cols, n=n, min_gap=min_gap)
 
@@ -125,15 +184,20 @@ left, right = st.columns([3, 2])
 with left:
     st.markdown("**Candidate alternatives**")
     st.caption(
-        "Skill similarity: how closely the alternative's required skill profile matches your "
-        "starting occupation's (100% = identical). See the glossary above for details."
+        "Skill alignment: how closely the alternative's distinctive skill emphasis matches your "
+        "starting occupation's (roughly -1 to +1; not a percent match). Field of study: whether "
+        "a shared educational path is plausible on paper (NCES crosswalk) — this can understate "
+        "real-world adjacency for closely related credentials; see the glossary above."
     )
     show = results[["occupation_title", "composite_exposure_score", "skill_similarity"]].copy()
-    show["skill_similarity"] = (show["skill_similarity"] * 100).round(1)
+    show["skill_similarity"] = show["skill_similarity"].round(2)
+    show["Field of study"] = [
+        field_of_study_tag(soc_code, r, cip_soc_df) for r in results["soc_code"]
+    ]
     show = show.rename(columns={
         "occupation_title": "Occupation",
         "composite_exposure_score": "Exposure score",
-        "skill_similarity": "Skill similarity (%)",
+        "skill_similarity": "Skill alignment",
     })
     st.dataframe(show, use_container_width=True, hide_index=True)
 
@@ -141,33 +205,71 @@ with right:
     fig = px.bar(
         results.sort_values("skill_similarity"),
         x="skill_similarity", y="occupation_title", orientation="h",
-        labels={"skill_similarity": "Skill similarity", "occupation_title": ""},
+        color="skill_similarity", color_continuous_scale=["#EF553B", "#B0B0B0", "#00CC96"],
+        color_continuous_midpoint=0,
+        labels={"skill_similarity": "Skill alignment", "occupation_title": ""},
     )
-    fig.update_layout(xaxis_tickformat=".0%")
+    fig.update_layout(coloraxis_showscale=False)
     st.plotly_chart(fig, use_container_width=True)
 
 st.divider()
 st.subheader("Skill gap detail")
-top_choice_title = st.selectbox(
-    "Show the skill gap for:", results["occupation_title"].tolist(), index=0,
-)
+
+CATEGORY_LABELS = {
+    "skill__": "Basic Skill",
+    "xfskill__": "Technical/Cross-Functional Skill",
+    "knowledge__": "Knowledge Domain",
+}
+
+
+def _prettify_gap_col(col: str):
+    """'gap__xfskill__programming' -> ('Technical/Cross-Functional Skill', 'Programming')."""
+    raw = col[len("gap__"):]
+    for prefix, category in CATEGORY_LABELS.items():
+        if raw.startswith(prefix):
+            return category, raw[len(prefix):].replace("_", " ").title()
+    return "Other", raw.replace("_", " ").title()
+
+
+col_choice, col_top_n = st.columns([3, 1])
+with col_choice:
+    top_choice_title = st.selectbox(
+        "Show the skill gap for:", results["occupation_title"].tolist(), index=0,
+    )
+with col_top_n:
+    top_n_gaps = st.slider(
+        "How many skills to show", min_value=5, max_value=20, value=10,
+        help="Across all 67 skill/knowledge dimensions used for alignment, show only the ones "
+             "that differ the most between the two occupations -- the ones most worth reading.",
+    )
+
 top_row = results.loc[results["occupation_title"] == top_choice_title].iloc[0]
 gap_cols = [c for c in results.columns if c.startswith("gap__")]
-gap_df = pd.DataFrame({
-    "skill": [c.replace("gap__skill__", "").replace("_", " ").title() for c in gap_cols],
-    "gap": [top_row[c] for c in gap_cols],
-})
-gap_df = gap_df.sort_values("gap")
+gap_records = []
+for c in gap_cols:
+    category, label = _prettify_gap_col(c)
+    gap_records.append({"category": category, "skill": label, "gap": top_row[c]})
+gap_df = pd.DataFrame(gap_records)
+gap_df["abs_gap"] = gap_df["gap"].abs()
+top_gap_df = gap_df.sort_values("abs_gap", ascending=False).head(top_n_gaps).sort_values("gap")
+SHORT_CATEGORY = {
+    "Basic Skill": "Basic", "Technical/Cross-Functional Skill": "Technical", "Knowledge Domain": "Knowledge",
+}
+top_gap_df["label"] = top_gap_df["skill"] + " (" + top_gap_df["category"].map(SHORT_CATEGORY) + ")"
+
 fig2 = px.bar(
-    gap_df, x="gap", y="skill", orientation="h",
+    top_gap_df, x="gap", y="label", orientation="h",
     color="gap", color_continuous_scale=["#EF553B", "#B0B0B0", "#00CC96"],
     color_continuous_midpoint=0,
-    labels={"gap": "Importance rating difference vs. starting occupation", "skill": ""},
+    labels={"gap": "Importance rating difference vs. starting occupation", "label": ""},
 )
+fig2.update_layout(coloraxis_showscale=False)
 st.plotly_chart(fig2, use_container_width=True)
 st.caption(
-    "Each bar compares how important a skill is rated for the two occupations (O*NET 1-5 importance "
-    "scale), not your personal skill level. Positive/green = this skill matters more in the "
-    "alternative occupation than in your starting one — a possible skill gap to close. "
-    "Negative/red = it matters less there."
+    f"Showing the {top_n_gaps} skills/knowledge areas with the biggest difference (out of "
+    f"{len(gap_cols)} compared) between the two occupations, each labeled with its source "
+    "(Basic / Technical / Knowledge). Positive/green = matters more in the alternative "
+    "occupation than in your starting one — a possible gap to close. Negative/red = it matters "
+    "less there. These are O*NET 1-5 importance ratings for the occupations, not your personal "
+    "skill level."
 )

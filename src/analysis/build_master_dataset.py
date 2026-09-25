@@ -123,6 +123,9 @@ ONET_DIR = RAW_DIR / f"onet_db_{ONET_VERSION}"
 AIOE_PATH = RAW_DIR / "AIOE_DataAppendix.xlsx"
 JOB_ZONES_PATH = ONET_DIR / "Job Zones.xlsx"
 SKILLS_PATH = ONET_DIR / "Essential Skills.xlsx"
+TRANSFERABLE_SKILLS_PATH = ONET_DIR / "Transferable Skills.xlsx"
+KNOWLEDGE_PATH = ONET_DIR / "Knowledge.xlsx"
+CIP_SOC_CROSSWALK_PATH = RAW_DIR / "CIP2020_SOC2018_Crosswalk.xlsx"
 ILO_OCCUPATION_PATH = RAW_DIR / "ILO_Final_Scores_ISCO08_Gmyrek_et_al_2025.xlsx"
 GPTS_ARE_GPTS_PATH = RAW_DIR / "GPTs_are_GPTs_occ_level.csv"
 STATCAN_HTML_PATH = RAW_DIR / "StatCan_11F0019M2024005_AI_Occupational_Exposure.html"
@@ -235,12 +238,16 @@ def load_job_zones(path: Path = JOB_ZONES_PATH) -> pd.DataFrame:
     return df[[code_col, zone_col]].rename(columns={code_col: "onet_soc_code", zone_col: "job_zone"})
 
 
-def load_skill_profile(path: Path = SKILLS_PATH) -> pd.DataFrame:
+def _load_onet_wide_importance(path: Path, prefix: str) -> pd.DataFrame:
     """
-    Build a wide skill-profile table: one row per O*NET-SOC code, one column
-    per skill element (its Importance ("IM") rating), for use later in
-    RQ4 (exposure vs. skill profile) and the professional-layer reskilling
-    similarity calc (nearest lower-exposure occupation by skill vector).
+    Shared pivot logic for any O*NET table shaped like Essential Skills.xlsx
+    (one row per O*NET-SOC code x Element Name x Scale ID, with an
+    Importance ("IM") and a Level ("LV") rating per row) -- Essential
+    Skills.xlsx, Transferable Skills.xlsx, and Knowledge.xlsx all share this
+    exact schema. Pivots to one row per O*NET-SOC code, one column per
+    element's Importance rating, with `prefix` so the three resulting
+    tables' columns never collide once merged onto the same master table
+    (skill__* / xfskill__* / knowledge__*).
     """
     if not path.exists():
         raise FileNotFoundError(f"{path} not found. Run fetch_onet.py first.")
@@ -256,9 +263,67 @@ def load_skill_profile(path: Path = SKILLS_PATH) -> pd.DataFrame:
     wide = importance.pivot_table(
         index=code_col, columns=element_col, values=value_col, aggfunc="mean"
     )
-    wide.columns = [f"skill__{c.strip().lower().replace(' ', '_')}" for c in wide.columns]
+    wide.columns = [f"{prefix}{c.strip().lower().replace(' ', '_')}" for c in wide.columns]
     wide = wide.reset_index().rename(columns={code_col: "onet_soc_code"})
     return wide
+
+
+def load_skill_profile(path: Path = SKILLS_PATH) -> pd.DataFrame:
+    """
+    Build a wide skill-profile table (skill__* columns) from O*NET's Basic
+    Skills (Essential Skills.xlsx): one row per O*NET-SOC code, one column
+    per skill element's Importance rating. These 10 skills are broad,
+    cognitive/developmental skills shared by almost every occupation
+    (Reading Comprehension, Mathematics, Critical Thinking, ...) -- used by
+    RQ4 in the notebook.
+
+    See also load_transferable_skills() and load_knowledge_profile(), added
+    after a real-data test showed that skill__* alone is too generic to
+    meaningfully distinguish occupations for the professional-layer
+    reskilling similarity calc (nearest_lower_exposure_alternatives()):
+    raw cosine similarity on just these 10 columns ranked e.g. Stonemasons
+    99.7% "similar" to Data Scientists, because nearly every occupation
+    rates baseline literacy/communication skills moderately-to-highly
+    important. The reskilling calc now uses skill__* + xfskill__* +
+    knowledge__* together (see app/pages/2_Reskilling_Alternatives.py);
+    RQ4 still uses skill__* alone for now (revisit separately -- H4's own
+    hypothesis is actually about social/physical/supervisory skills, which
+    skill__* doesn't cover either; xfskill__* has the social ones).
+    """
+    return _load_onet_wide_importance(path, "skill__")
+
+
+def load_transferable_skills(path: Path = TRANSFERABLE_SKILLS_PATH) -> pd.DataFrame:
+    """
+    Build a wide table (xfskill__* columns) from O*NET's Cross-Functional /
+    "Transferable" Skills (Transferable Skills.xlsx): 24 more specific
+    skills including Programming, Troubleshooting, Repairing, Systems
+    Analysis, Equipment Maintenance, Negotiation, Social Perceptiveness,
+    Management of Personnel Resources, etc. -- these are the skills that
+    actually differ sharply between, say, a data scientist and an
+    electrician, unlike the generic skill__* Basic Skills. Split out of
+    O*NET's old combined Skills.xlsx as of O*NET v31.0 (see this project's
+    first commit / src/data_acquisition/README.md); fetch_onet.py already
+    downloads this file, it just wasn't loaded until now.
+    """
+    return _load_onet_wide_importance(path, "xfskill__")
+
+
+def load_knowledge_profile(path: Path = KNOWLEDGE_PATH) -> pd.DataFrame:
+    """
+    Build a wide table (knowledge__* columns) from O*NET's Knowledge domain
+    (Knowledge.xlsx): 33 subject-matter areas (Computers and Electronics,
+    Engineering and Technology, Medicine and Dentistry, Mechanical,
+    Building and Construction, Law and Government, ...). This is the most
+    occupation-SPECIFIC of the three O*NET importance-rating tables used in
+    this project -- most occupations score near-zero on most of these 33
+    domains and high on just one or two, which is exactly the kind of
+    signal that distinguishes, e.g., "needs a Computer Science-adjacent
+    background" from "needs a Medicine-adjacent background." Combined with
+    skill__* and xfskill__* for the professional-layer reskilling
+    similarity calc.
+    """
+    return _load_onet_wide_importance(path, "knowledge__")
 
 
 def load_ilo_occupation_scores(path: Path = ILO_OCCUPATION_PATH) -> pd.DataFrame:
@@ -673,6 +738,12 @@ def merge_all() -> pd.DataFrame:
     print("Loading O*NET skill profile (Essential Skills, Importance ratings) ...")
     skills = load_skill_profile()
 
+    print("Loading O*NET Transferable Skills (Cross-Functional, Importance ratings) ...")
+    transferable_skills = load_transferable_skills()
+
+    print("Loading O*NET Knowledge domains (Importance ratings) ...")
+    knowledge = load_knowledge_profile()
+
     print("Loading ILO occupation-level exposure scores (ISCO-08) ...")
     ilo_occ = load_ilo_occupation_scores()
     print(f"  {len(ilo_occ)} ISCO-08 occupations with an ILO score")
@@ -738,8 +809,11 @@ def merge_all() -> pd.DataFrame:
     # the same key AIOE uses.
     onet_detail = onet.merge(job_zones, on="onet_soc_code", how="left")
     onet_detail = onet_detail.merge(skills, on="onet_soc_code", how="left")
+    onet_detail = onet_detail.merge(transferable_skills, on="onet_soc_code", how="left")
+    onet_detail = onet_detail.merge(knowledge, on="onet_soc_code", how="left")
 
-    skill_cols = [c for c in onet_detail.columns if c.startswith("skill__")]
+    skill_cols = [c for c in onet_detail.columns
+                  if c.startswith(("skill__", "xfskill__", "knowledge__"))]
     agg = {"job_zone": "mean", **{c: "mean" for c in skill_cols}}
     onet_by_soc = onet_detail.groupby("soc_code").agg(agg).reset_index()
 
@@ -798,31 +872,176 @@ def merge_all() -> pd.DataFrame:
     return master
 
 
+def save(master: pd.DataFrame) -> Path:
+    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+    out_path = PROCESSED_DIR / "master_occupations.csv"
+    master.to_csv(out_path, index=False)
+    return out_path
+
+
+def load_cip_soc_crosswalk(path: Path = CIP_SOC_CROSSWALK_PATH) -> pd.DataFrame:
+    """
+    NCES CIP (2020) -> SOC (2018) educational-program-to-occupation
+    crosswalk: which college/diploma fields of study (CIP codes) typically
+    lead to which occupations (SOC codes), published by the U.S. Dept. of
+    Education. Source: https://nces.ed.gov/ipeds/cipcode/Files/CIP2020_SOC2018_Crosswalk.xlsx
+    (download it and save it at this path if missing -- see
+    src/data_acquisition/README.md).
+
+    APPENDIX-STYLE, like load_statcan_noc_exposure() -- the relationship is
+    many-to-many (one CIP code leads to several SOC codes and vice versa),
+    so this is deliberately NOT merged into merge_all()'s one-row-per-
+    occupation master table (that would multiply rows). Load it separately
+    and look up matches by soc_code, e.g. to tag whether two occupations in
+    the Reskilling page share a field of study (see save_cip_soc_crosswalk()
+    below, which is what the Streamlit app actually reads at runtime).
+
+    The workbook has several sheets (File Guide, CIP-SOC, SOC-CIP, ...);
+    only "CIP-SOC" holds the actual mapping rows.
+    """
+    if not path.exists():
+        raise FileNotFoundError(
+            f"{path} not found. Download it from "
+            "https://nces.ed.gov/ipeds/cipcode/Files/CIP2020_SOC2018_Crosswalk.xlsx "
+            f"and save it at {path}."
+        )
+    df = pd.read_excel(path, sheet_name="CIP-SOC")
+    df.columns = [str(c).strip() for c in df.columns]
+    df = df.rename(columns={
+        "CIP2020Code": "cip_code",
+        "CIP2020Title": "cip_title",
+        "SOC2018Code": "soc_code",
+        "SOC2018Title": "soc_title",
+    })
+    df["soc_code"] = df["soc_code"].astype(str).str.strip()
+    df["cip_code"] = df["cip_code"].astype(str).str.strip()
+    df["cip_title"] = df["cip_title"].astype(str).str.rstrip(".").str.strip()
+    df["soc_title"] = df["soc_title"].astype(str).str.rstrip(".").str.strip()
+    return df[["cip_code", "cip_title", "soc_code", "soc_title"]]
+
+
+def save_cip_soc_crosswalk(cip_soc: pd.DataFrame) -> Path:
+    """
+    Save a small processed copy of the CIP-SOC crosswalk to data/processed/
+    (unlike data/raw/, data/processed/ IS committed to git -- see
+    .gitignore) so the Streamlit app can read it without needing
+    data/raw/ to exist in the deployed environment (Streamlit Community
+    Cloud deploys straight from the GitHub repo, which never has
+    data/raw/'s contents -- see app/utils.py's module docstring).
+    """
+    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+    out_path = PROCESSED_DIR / "cip_soc_crosswalk.csv"
+    cip_soc.to_csv(out_path, index=False)
+    return out_path
+
+
+def shares_field_of_study(soc_a: str, soc_b: str, cip_soc_df: pd.DataFrame):
+    """
+    True if soc_a and soc_b share at least one CIP (field-of-study) code in
+    the NCES crosswalk -- i.e. at least one academic program the crosswalk
+    lists as typically leading to BOTH occupations. False if both
+    occupations appear in the crosswalk but share no CIP code. None if
+    either occupation isn't in the crosswalk at all (no data either way --
+    deliberately distinct from False, so the caller doesn't claim "requires
+    a different field" when it simply has no information).
+    """
+    cips_a = set(cip_soc_df.loc[cip_soc_df["soc_code"] == soc_a, "cip_code"])
+    cips_b = set(cip_soc_df.loc[cip_soc_df["soc_code"] == soc_b, "cip_code"])
+    if not cips_a or not cips_b:
+        return None
+    return bool(cips_a & cips_b)
+
+
 def nearest_lower_exposure_alternatives(source_soc, df, skill_cols, n=5, min_gap=0.0):
     """
-    For a given high-exposure occupation (by soc_code), find the n most
-    skill-similar occupations (cosine similarity over O*NET Basic Skills
-    importance ratings) among those with a MEANINGFULLY lower
-    composite_exposure_score -- candidates for reskilling.
+    For a given high-exposure occupation (by soc_code), find the n occupations
+    whose skill EMPHASIS pattern is most aligned with it (cosine similarity
+    over per-skill z-scored O*NET Basic Skills importance ratings) among
+    those with a MEANINGFULLY lower composite_exposure_score -- candidates
+    for reskilling.
+
+    IMPORTANT -- z-scored, not raw, skill vectors (fixed after a real-data
+    bug report): the first version of this function ran cosine similarity
+    directly on the raw 1-5 importance ratings and produced nonsense --
+    e.g. Data Scientists came back 99.6-99.9% "similar" to Stonemasons,
+    Electricians, Plumbers, and Machinists. Root cause, confirmed on the
+    real dataset: these 10 Basic Skills columns share a strong common
+    component (almost every occupation rates baseline literacy/
+    communication skills like Active Listening and Reading Comprehension
+    moderately-to-highly important), and raw cosine similarity is dominated
+    by that shared direction rather than by what actually differs between
+    occupations (Mathematics, Science, Learning Strategies, etc.). Z-scoring
+    each skill column across the dataset first removes that shared
+    baseline: re-run on the same real Data-Scientists-vs-trades example,
+    z-scored cosine similarity dropped from ~0.997 to roughly -0.46..+0.30
+    (Electricians -- the most technical of that group -- came out highest,
+    which matches intuition; the others came out near zero or negative,
+    i.e. no meaningful alignment). This makes the resulting `skill_similarity`
+    value a signed score roughly in [-1, 1], not a 0-100% "match" -- see the
+    Streamlit app's in-page glossary for the user-facing explanation.
 
     Moved here (out of the notebook's Professional Layer cell, where it was
     originally prototyped) so the Phase 2 Streamlit app can import the exact
-    same logic instead of re-implementing or copy-pasting it.
+    same logic instead of re-implementing or copy-pasting it. The notebook
+    now imports this function rather than defining its own copy -- see
+    notebooks/01_exploratory_analysis.ipynb, Professional layer section.
+
+    Parameters
+    ----------
+    source_soc : str
+        SOC code of the high-exposure occupation to find alternatives for.
+    df : pd.DataFrame
+        The master occupation table (as returned by merge_all() / loaded
+        from data/processed/master_occupations.csv), must contain
+        soc_code, occupation_title, composite_exposure_score, and every
+        column in skill_cols. Z-score means/stds are computed across every
+        row of this df that has a value for a given skill column (pandas'
+        default NaN-skipping mean/std), so results are stable regardless of
+        which single source_soc or candidate subset is being queried.
+    skill_cols : list[str]
+        The skill__* column names to compare occupations on (typically
+        `[c for c in df.columns if c.startswith("skill__")]`).
+    n : int
+        Number of alternatives to return.
+    min_gap : float
+        Minimum required drop in composite_exposure_score for a candidate
+        to even be considered (0.0 = any strictly lower score qualifies).
+
+    Returns
+    -------
+    pd.DataFrame with columns: soc_code, occupation_title,
+    composite_exposure_score, skill_similarity (z-scored cosine similarity,
+    roughly -1 to 1; higher = this occupation's skill emphasis pattern
+    aligns more with the source occupation's, relative to the dataset as a
+    whole), and one gap__<skill> column per skill in skill_cols (candidate's
+    RAW 1-5 importance rating minus the source occupation's RAW rating on
+    that skill -- positive means the candidate occupation rates that skill
+    MORE important than the source occupation; this one is intentionally
+    NOT z-scored, so it stays interpretable on the original 1-5 scale).
+    Empty DataFrame (same columns, zero rows) if source_soc isn't found or
+    no qualifying candidates exist.
     """
-    source_rows = df.loc[df["soc_code"] == source_soc]
-    if source_rows.empty:
+    if source_soc not in df["soc_code"].values:
         raise ValueError(f"soc_code {source_soc} not found")
-    source_row = source_rows.iloc[0]
-    source_vec = source_row[skill_cols].to_numpy(dtype=float)
+
+    df = df.copy()
+    skill_means = df[skill_cols].mean()
+    skill_stds = df[skill_cols].std()
+    z_cols = [f"_z_{c}" for c in skill_cols]
+    for col, z_col in zip(skill_cols, z_cols):
+        df[z_col] = (df[col] - skill_means[col]) / skill_stds[col]
+
+    source_row = df.loc[df["soc_code"] == source_soc].iloc[0]
+    source_vec = source_row[z_cols].to_numpy(dtype=float)
     source_score = source_row["composite_exposure_score"]
 
-    candidates = df.dropna(subset=skill_cols + ["composite_exposure_score"]).copy()
+    candidates = df.dropna(subset=z_cols + ["composite_exposure_score"]).copy()
     candidates = candidates[candidates["soc_code"] != source_soc]
     candidates = candidates[candidates["composite_exposure_score"] < source_score - min_gap]
     if candidates.empty:
-        return candidates
+        return candidates.drop(columns=z_cols, errors="ignore")
 
-    cand_matrix = candidates[skill_cols].to_numpy(dtype=float)
+    cand_matrix = candidates[z_cols].to_numpy(dtype=float)
     sims = cosine_similarity(source_vec.reshape(1, -1), cand_matrix)[0]
     candidates = candidates.assign(skill_similarity=sims)
     top = candidates.sort_values("skill_similarity", ascending=False).head(n).copy()
@@ -837,16 +1056,17 @@ def nearest_lower_exposure_alternatives(source_soc, df, skill_cols, n=5, min_gap
     return top[out_cols]
 
 
-def save(master: pd.DataFrame) -> Path:
-    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
-    out_path = PROCESSED_DIR / "master_occupations.csv"
-    master.to_csv(out_path, index=False)
-    return out_path
-
-
 if __name__ == "__main__":
     master = merge_all()
     out_path = save(master)
     print(f"\nDone. {len(master)} occupations in the master table.")
     print(f"Saved: {out_path}")
     print(f"Columns: {list(master.columns)}")
+
+    try:
+        cip_soc = load_cip_soc_crosswalk()
+        cip_soc_path = save_cip_soc_crosswalk(cip_soc)
+        print(f"\nSaved CIP-SOC field-of-study crosswalk: {cip_soc_path} ({len(cip_soc)} rows)")
+    except FileNotFoundError as e:
+        print(f"\nSkipping CIP-SOC crosswalk save (Reskilling page's field-of-study tag will be "
+              f"unavailable until this is fixed): {e}")

@@ -21,3 +21,11 @@ Thumbs.db
 
 # Environment
 .env
+
+# Credentials / secrets -- never commit these regardless of filename casing
+*API*TOKEN*
+*api*token*
+kaggle.json
+*.pem
+*.key
+credentials.json
