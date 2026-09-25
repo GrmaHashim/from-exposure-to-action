@@ -7796,7 +7796,7 @@ a.anchor-link {
 <!-- End of mermaid configuration --></head>
 <body class="jp-Notebook" data-jp-theme-light="true" data-jp-theme-name="JupyterLab Light">
 <main>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=76ebcd75">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=e794dc26">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -7809,7 +7809,7 @@ a.anchor-link {
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=60d1bccd">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=b501a2ac">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -7819,7 +7819,7 @@ a.anchor-link {
 </div>
 </div>
 </div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs" id="cell-id=db7dc81d">
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs" id="cell-id=5569e9a5">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -7842,7 +7842,7 @@ a.anchor-link {
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=66299e85">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=3cd5bc7d">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -7853,13 +7853,17 @@ a.anchor-link {
 python<span class="w"> </span>../src/data_acquisition/fetch_onet.py
 python<span class="w"> </span>../src/data_acquisition/fetch_ilo_genai.py
 python<span class="w"> </span>../src/data_acquisition/fetch_bls_crosswalks.py
+python<span class="w"> </span>../src/data_acquisition/fetch_gpts_are_gpts.py
+python<span class="w"> </span>../src/data_acquisition/fetch_anthropic_economic_index.py
+python<span class="w"> </span>../src/data_acquisition/fetch_statcan_canada.py
+python<span class="w"> </span>../src/data_acquisition/fetch_bls_oews.py
 </pre></div>
-<p>(Remaining fetchers -- OECD, BLS OEWS, GPTs are GPTs, Anthropic Economic Index, Statistics Canada -- are tracked in <code>src/data_acquisition/README.md</code>.)</p>
+<p><code>fetch_bls_crosswalks.py</code> and <code>fetch_bls_oews.py</code> need their source files downloaded manually first (bls.gov blocks scripted downloads) -- see <code>src/data_acquisition/README.md</code> for exact filenames/paths. The only source NOT fetched anywhere in this project is OECD's AI Exposure Measure -- investigated and dropped (no downloadable dataset exists, only PDF text), not a pending item.</p>
 </div>
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=5089664a">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=0835a5a1">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -7869,7 +7873,7 @@ python<span class="w"> </span>../src/data_acquisition/fetch_bls_crosswalks.py
 </div>
 </div>
 </div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=81499c73">
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=c6a9a24c">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -8183,7 +8187,7 @@ Merging AIOE + O*NET + ILO + GPTs-are-GPTs + Anthropic on soc_code ...
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=48bf276a">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=e63719a7">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -8193,7 +8197,7 @@ Merging AIOE + O*NET + ILO + GPTs-are-GPTs + Anthropic on soc_code ...
 </div>
 </div>
 </div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=1dbad44f">
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=69f1b679">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -8625,7 +8629,7 @@ Bottom 15 lowest-exposure occupations:
 </div>
 </div>
 </div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=e5a2c5e4">
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=c4ed98fa">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -8672,7 +8676,7 @@ Name: count, dtype: int64
 </div>
 </div>
 </div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=da21efa5">
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=2d47b2b9">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -8707,7 +8711,7 @@ Name: count, dtype: int64
 </div>
 </div>
 </div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=e1d77fdd">
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=89ec6892">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -8748,7 +8752,7 @@ Name: count, dtype: int64
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=e9ceac58">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=97ceb2a4">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -8760,7 +8764,7 @@ Name: count, dtype: int64
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=4dfc0e82">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=3c9f509a">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -8770,7 +8774,7 @@ Name: count, dtype: int64
 </div>
 </div>
 </div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=036ce31d">
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=b13f484f">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -8877,7 +8881,7 @@ Name: count, dtype: int64
 </div>
 </div>
 </div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=da3dd23b">
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=49120bc4">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -8922,7 +8926,7 @@ Kruskal-Wallis, anthropic_1p_augmentation_share across impact_pattern groups: H=
 </div>
 </div>
 </div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=dc88c865">
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=7a08fa34">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -8977,7 +8981,7 @@ Kruskal-Wallis, anthropic_1p_augmentation_share across impact_pattern groups: H=
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=d4bb774d">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=d1157bd1">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -9021,7 +9025,7 @@ Kruskal-Wallis, anthropic_1p_augmentation_share across impact_pattern groups: H=
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=e4ca73fa">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=5601a886">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -9031,7 +9035,7 @@ Kruskal-Wallis, anthropic_1p_augmentation_share across impact_pattern groups: H=
 </div>
 </div>
 </div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=6ee7e0b2">
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=c60ca20e">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -9142,7 +9146,7 @@ Kruskal-Wallis, anthropic_1p_augmentation_share across impact_pattern groups: H=
 </div>
 </div>
 </div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=d8528e35">
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=0c343664">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -9191,7 +9195,7 @@ Kruskal-Wallis, anthropic_1p_augmentation_share across impact_pattern groups: H=
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=7938050c">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=4b471e2e">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -9203,7 +9207,7 @@ Kruskal-Wallis, anthropic_1p_augmentation_share across impact_pattern groups: H=
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=9b454eab">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=318fb3f2">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -9213,7 +9217,7 @@ Kruskal-Wallis, anthropic_1p_augmentation_share across impact_pattern groups: H=
 </div>
 </div>
 </div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=5c7ef10d">
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=dcbf2a5b">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -9402,7 +9406,7 @@ Kruskal-Wallis, anthropic_1p_augmentation_share across impact_pattern groups: H=
 </div>
 </div>
 </div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=0ae31a10">
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=b77765a4">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -9436,7 +9440,7 @@ Kruskal-Wallis, anthropic_1p_augmentation_share across impact_pattern groups: H=
 </div>
 </div>
 </div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=cd6d3b14">
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=615923b5">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -9627,7 +9631,7 @@ Kruskal-Wallis, anthropic_1p_augmentation_share across impact_pattern groups: H=
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=8cd077d9">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=43fe3a08">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -9703,7 +9707,7 @@ Kruskal-Wallis, anthropic_1p_augmentation_share across impact_pattern groups: H=
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=ae311dcf">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=b2f30043">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -9713,7 +9717,7 @@ Kruskal-Wallis, anthropic_1p_augmentation_share across impact_pattern groups: H=
 </div>
 </div>
 </div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=87201862">
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=8769f1b3">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -9779,7 +9783,7 @@ composite_exposure_score vs. anthropic_1p_augmentation_share: rho=0.230, p=1.25e
 </div>
 </div>
 </div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=5cb24341">
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=7657e0e5">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -9826,7 +9830,7 @@ composite_exposure_score vs. anthropic_1p_augmentation_share: rho=0.230, p=1.25e
 </div>
 </div>
 </div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=010ced0f">
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=7a25083d">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -10112,7 +10116,7 @@ composite_exposure_score vs. anthropic_1p_augmentation_share: rho=0.230, p=1.25e
 </div>
 </div>
 </div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=695632e1">
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=cf34f3ac">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -10159,7 +10163,7 @@ composite_exposure_score vs. anthropic_1p_augmentation_share: rho=0.230, p=1.25e
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=d1b881b5">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=af285df8">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -10174,7 +10178,7 @@ composite_exposure_score vs. anthropic_1p_augmentation_share: rho=0.230, p=1.25e
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=da1b22c3">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=461dfa40">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -10184,7 +10188,7 @@ composite_exposure_score vs. anthropic_1p_augmentation_share: rho=0.230, p=1.25e
 </div>
 </div>
 </div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=73e6a368">
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=87fe0a11">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -10308,7 +10312,7 @@ Spearman correlation, job_zone vs. composite_exposure_score: rho=0.615, p=2.65e-
 </div>
 </div>
 </div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=7480c312">
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=11a9576c">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -10352,7 +10356,7 @@ Spearman correlation, job_zone vs. composite_exposure_score: rho=0.615, p=2.65e-
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=d29dbcfc">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=91b5f725">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -10402,7 +10406,7 @@ Spearman correlation, job_zone vs. composite_exposure_score: rho=0.615, p=2.65e-
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=5ff87305">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=1709ba9c">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -10412,7 +10416,7 @@ Spearman correlation, job_zone vs. composite_exposure_score: rho=0.615, p=2.65e-
 </div>
 </div>
 </div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=dde77a5f">
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=383ce576">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -10621,7 +10625,7 @@ Example high-exposure occupation: Computer Programmers (15-1251)
 </div>
 </div>
 </div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=5985b2b0">
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=1a69c9f1">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -10662,7 +10666,7 @@ Example high-exposure occupation: Computer Programmers (15-1251)
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=79ae86ef">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=ce0c8086">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -10713,7 +10717,7 @@ Example high-exposure occupation: Computer Programmers (15-1251)
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=942f5871">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=ed224f24">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -10723,7 +10727,7 @@ Example high-exposure occupation: Computer Programmers (15-1251)
 </div>
 </div>
 </div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=19d835a8">
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=2dad7b0a">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -11023,7 +11027,7 @@ Example high-exposure occupation: Computer Programmers (15-1251)
 </div>
 </div>
 </div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=1d33cb8a">
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=29de62ce">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -11080,7 +11084,7 @@ Example high-exposure occupation: Computer Programmers (15-1251)
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=7781b7c4">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=97d5ed60">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -11093,7 +11097,7 @@ Example high-exposure occupation: Computer Programmers (15-1251)
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=da846d91">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=26d080dc">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -11103,7 +11107,7 @@ Example high-exposure occupation: Computer Programmers (15-1251)
 </div>
 </div>
 </div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=0207d9a7">
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=84edb05d">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -11279,7 +11283,7 @@ Example high-exposure occupation: Computer Programmers (15-1251)
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=79a811ed">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=43be3609">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -11295,7 +11299,7 @@ Example high-exposure occupation: Computer Programmers (15-1251)
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=f256ebcf">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=f229ab76">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
