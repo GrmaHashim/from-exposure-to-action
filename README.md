@@ -78,8 +78,8 @@ from-exposure-to-action/
 - [x] Data Dictionary workbook (dataset registry, crosswalks, research question map, Phase 2 spec)
 - [x] Repository scaffold
 - [ ] **Phase 1 — Data acquisition:** pull and cache all 8 datasets (`src/data_acquisition/`)
-- [ ] **Phase 1 — Crosswalk & join:** build the master occupation-level table (`src/analysis/build_master_dataset.py`)
-- [ ] **Phase 1 — Analysis notebook:** answer RQ1–RQ5 + student/professional layers + Canada appendix (`notebooks/`)
+- [x] **Phase 1 — Crosswalk & join:** build the master occupation-level table (`src/analysis/build_master_dataset.py`)
+- [x] **Phase 1 — Analysis notebook:** answer RQ1–RQ5 + student/professional layers + Canada appendix (`notebooks/`)
 - [ ] **Phase 1 — Publish:** push notebook + processed dataset to Kaggle, push repo to GitHub
 - [ ] **Phase 2 — Web app:** Streamlit/Gradio app built on Phase 1's outputs
 
