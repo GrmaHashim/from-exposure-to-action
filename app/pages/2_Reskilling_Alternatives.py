@@ -35,6 +35,36 @@ transition.
 """
 )
 
+with st.expander("What do the terms on this page mean?"):
+    st.markdown(
+        """
+**Exposure score** — how exposed an occupation is to AI, on a scale centered at 0
+(0 = average across all occupations analyzed; higher = more exposed, lower = less).
+It blends several independent research indices, standardized onto the same scale
+so they can be compared and averaged.
+
+**Skill similarity** — how alike two occupations' *required* skills are (not your
+personal skills), from 0% to 100%. It compares each occupation's O\\*NET skill
+profile (how important things like Critical Thinking, Mathematics, or Active
+Listening are rated for that occupation) and measures how closely the patterns
+match. 100% would mean identical skill requirements.
+
+**Minimum exposure gap required** *(slider)* — how much lower an alternative
+occupation's exposure score must be than your starting occupation's, before it's
+even considered a candidate. At 0, any occupation with a lower score qualifies —
+even by a tiny amount. Raise it to only see alternatives with a clearly
+meaningful drop in exposure, filtering out ones where the difference is small
+enough to not mean much in practice.
+
+**Importance rating difference** *(skill gap chart)* — for one specific skill,
+the alternative occupation's O\\*NET importance rating (1-5 scale) minus your
+starting occupation's rating for that same skill. It describes what the two
+*occupations* typically require, not how good you personally are at that skill.
+Green/positive = that skill matters more in the alternative role (a possible gap
+to close); red/negative = it matters less there.
+"""
+    )
+
 try:
     master = load_master()
 except (FileNotFoundError, ValueError) as e:
@@ -56,9 +86,20 @@ with col_select:
                            options.tolist(), index=None,
                            placeholder="Start typing an occupation title...")
 with col_n:
-    n = st.slider("How many alternatives", min_value=3, max_value=15, value=5)
+    n = st.slider(
+        "How many alternatives", min_value=3, max_value=15, value=5,
+        help="Number of alternative occupations to list, ranked by skill similarity.",
+    )
 with col_gap:
-    min_gap = st.slider("Minimum exposure gap required", min_value=0.0, max_value=2.0, value=0.0, step=0.1)
+    min_gap = st.slider(
+        "Minimum exposure gap required", min_value=0.0, max_value=2.0, value=0.0, step=0.1,
+        help=(
+            "How much lower an alternative's exposure score must be than your starting "
+            "occupation's to qualify as a candidate. 0 = any lower score qualifies, even a "
+            "tiny one. Raise it to require a clearly meaningful drop in exposure. See "
+            "'What do the terms on this page mean?' above for more."
+        ),
+    )
 
 if choice is None:
     st.info("Pick a starting occupation above.")
@@ -83,6 +124,10 @@ left, right = st.columns([3, 2])
 
 with left:
     st.markdown("**Candidate alternatives**")
+    st.caption(
+        "Skill similarity: how closely the alternative's required skill profile matches your "
+        "starting occupation's (100% = identical). See the glossary above for details."
+    )
     show = results[["occupation_title", "composite_exposure_score", "skill_similarity"]].copy()
     show["skill_similarity"] = (show["skill_similarity"] * 100).round(1)
     show = show.rename(columns={
@@ -121,6 +166,8 @@ fig2 = px.bar(
 )
 st.plotly_chart(fig2, use_container_width=True)
 st.caption(
-    "Positive (green) = this skill matters more in the alternative occupation than in your starting "
-    "one — a skill you may need to build. Negative (red) = it matters less."
+    "Each bar compares how important a skill is rated for the two occupations (O*NET 1-5 importance "
+    "scale), not your personal skill level. Positive/green = this skill matters more in the "
+    "alternative occupation than in your starting one — a possible skill gap to close. "
+    "Negative/red = it matters less there."
 )
