@@ -103,6 +103,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from sklearn.metrics.pairwise import cosine_similarity
 
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -795,6 +796,45 @@ def merge_all() -> pd.DataFrame:
     master = master[cols_first + other_cols]
 
     return master
+
+
+def nearest_lower_exposure_alternatives(source_soc, df, skill_cols, n=5, min_gap=0.0):
+    """
+    For a given high-exposure occupation (by soc_code), find the n most
+    skill-similar occupations (cosine similarity over O*NET Basic Skills
+    importance ratings) among those with a MEANINGFULLY lower
+    composite_exposure_score -- candidates for reskilling.
+
+    Moved here (out of the notebook's Professional Layer cell, where it was
+    originally prototyped) so the Phase 2 Streamlit app can import the exact
+    same logic instead of re-implementing or copy-pasting it.
+    """
+    source_rows = df.loc[df["soc_code"] == source_soc]
+    if source_rows.empty:
+        raise ValueError(f"soc_code {source_soc} not found")
+    source_row = source_rows.iloc[0]
+    source_vec = source_row[skill_cols].to_numpy(dtype=float)
+    source_score = source_row["composite_exposure_score"]
+
+    candidates = df.dropna(subset=skill_cols + ["composite_exposure_score"]).copy()
+    candidates = candidates[candidates["soc_code"] != source_soc]
+    candidates = candidates[candidates["composite_exposure_score"] < source_score - min_gap]
+    if candidates.empty:
+        return candidates
+
+    cand_matrix = candidates[skill_cols].to_numpy(dtype=float)
+    sims = cosine_similarity(source_vec.reshape(1, -1), cand_matrix)[0]
+    candidates = candidates.assign(skill_similarity=sims)
+    top = candidates.sort_values("skill_similarity", ascending=False).head(n).copy()
+
+    gap_cols = []
+    for col in skill_cols:
+        gap_col = f"gap__{col}"
+        top[gap_col] = top[col] - source_row[col]
+        gap_cols.append(gap_col)
+
+    out_cols = ["soc_code", "occupation_title", "composite_exposure_score", "skill_similarity"] + gap_cols
+    return top[out_cols]
 
 
 def save(master: pd.DataFrame) -> Path:
