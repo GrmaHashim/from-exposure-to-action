@@ -99,7 +99,11 @@ occupation's exposure score must be than your starting occupation's, before it's
 even considered a candidate. At 0, any occupation with a lower score qualifies —
 even by a tiny amount. Raise it to only see alternatives with a clearly
 meaningful drop in exposure, filtering out ones where the difference is small
-enough to not mean much in practice.
+enough to not mean much in practice. Raising it can also lower the skill
+alignment of the results: occupations most aligned in skills with your starting
+one are often similarly exposed to AI, so requiring a bigger exposure drop can
+filter them out, leaving only more distant matches. A warning appears below when
+this happens.
 
 **Importance rating difference** *(skill gap chart)* — for one specific skill,
 the alternative occupation's O\\*NET importance rating (1-5 scale) minus your
@@ -178,6 +182,18 @@ if results.empty:
         "Try lowering the minimum exposure gap slider."
     )
     st.stop()
+
+avg_alignment = results["skill_similarity"].mean()
+if avg_alignment < 0.3:
+    st.warning(
+        f"With 'Minimum exposure gap required' set this high, the alternatives below have a "
+        f"large exposure drop from your starting occupation, but only weak skill overlap with "
+        f"it (average skill alignment: {avg_alignment:.2f}). That's an expected trade-off, not "
+        "an error -- the occupations most aligned in skills with your starting one are often "
+        "similarly exposed to AI, so requiring a bigger exposure drop leaves fewer, more "
+        "distant matches. Lower the slider to see closer skill matches, at the cost of a "
+        "smaller exposure gap."
+    )
 
 left, right = st.columns([3, 2])
 
